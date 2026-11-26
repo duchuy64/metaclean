@@ -1,0 +1,615 @@
+<!doctype html>
+<html lang="vi">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1">
+<title>Image Metadata Inspector – AI Provenance Cleaner</title>
+<style>
+  :root {
+    --bg: #f0f3f8;
+    --card: #ffffff;
+    --text: #1a2332;
+    --muted: #5c6b7e;
+    --border: #d5dee9;
+    --primary: #1a365d;
+    --primary-hover: #122#if;
+    --danger: #b42318;
+    --danger-hover: #912018;
+    --radius: 14px;
+  }
+
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+
+  body {
+    font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+    background: var(--bg);
+    color: var(--text);
+    line-height: 1.5;
+    -webkit-font-smoothing: antialiased;
+  }
+
+  .container {
+    max-width: 1080px;
+    margin: 0 auto;
+    padding: 20px 16px 60px;
+  }
+
+  header { margin-bottom: 24px; }
+
+  h1 {
+    font-size: clamp(1.45rem, 5vw, 1.85rem);
+    font-weight: 700;
+    letter-spacing: -0.02em;
+    margin-bottom: 6px;
+  }
+
+  .subtitle {
+    color: var(--muted);
+    font-size: 0.95rem;
+  }
+
+  .card {
+    background: var(--card);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    padding: 20px;
+    margin-bottom: 18px;
+    box-shadow: 0 1px 3px rgba(0,0,0,.05);
+  }
+
+  #drop {
+    border: 2px dashed #a0b0c4;
+    border-radius: 12px;
+    padding: 36px 20px;
+    text-align: center;
+    cursor: pointer;
+    transition: all .2s;
+    background: #fafbfc;
+  }
+  #drop.over {
+    background: #eef3ff;
+    border-color: #4c6ef5;
+  }
+  #drop strong { display: block; font-size: 1.05rem; margin-bottom: 6px; }
+  #drop p { color: var(--muted); font-size: 0.9rem; margin-bottom: 16px; }
+
+  .btn {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 6px;
+    padding: 11px 18px;
+    border: 0;
+    border-radius: 10px;
+    font-size: 0.92rem;
+    font-weight: 500;
+    cursor: pointer;
+    transition: background .15s;
+    white-space: nowrap;
+  }
+  .btn-primary { background: var(--primary); color: white; }
+  .btn-primary:hover:not(:disabled) { background: #12253f; }
+  .btn-danger { background: var(--danger); color: white; }
+  .btn-danger:hover:not(:disabled) { background: var(--danger-hover); }
+  .btn-secondary { background: #e6ebf2; color: #2c3e50; }
+  .btn-secondary:hover:not(:disabled) { background: #d8e0ea; }
+  .btn:disabled { opacity: 0.45; cursor: not-allowed; }
+  .btn-sm { padding: 8px 13px; font-size: 0.83rem; border-radius: 8px; }
+
+  .toolbar {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 10px;
+    margin-bottom: 14px;
+  }
+
+  #status {
+    color: var(--muted);
+    font-size: 0.9rem;
+    margin-bottom: 14px;
+    min-height: 1.4em;
+  }
+
+  .table-wrap { overflow-x: auto; -webkit-overflow-scrolling: touch; }
+
+  table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 0.88rem;
+    min-width: 760px;
+  }
+  th {
+    text-align: left;
+    padding: 11px 10px;
+    color: var(--muted);
+    font-weight: 600;
+    font-size: 0.78rem;
+    text-transform: uppercase;
+    letter-spacing: 0.03em;
+    border-bottom: 1px solid var(--border);
+    white-space: nowrap;
+  }
+  td {
+    padding: 13px 10px;
+    border-bottom: 1px solid #eef1f5;
+    vertical-align: middle;
+  }
+  tr:last-child td { border-bottom: 0; }
+
+  .thumb {
+    width: 50px;
+    height: 50px;
+    object-fit: contain;
+    background: #f0f2f5;
+    border-radius: 8px;
+    display: block;
+  }
+
+  .badge {
+    display: inline-block;
+    padding: 3px 9px;
+    border-radius: 999px;
+    font-size: 0.74rem;
+    font-weight: 500;
+  }
+  .badge-yes { background: #fef3c7; color: #92400e; }
+  .badge-no  { background: #ecfdf5; color: #065f46; }
+
+  /* Mobile cards */
+  .mobile-list { display: none; }
+  .file-card {
+    background: #fafbfc;
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    padding: 14px;
+    margin-bottom: 12px;
+  }
+  .file-card-header {
+    display: flex;
+    gap: 12px;
+    align-items: center;
+    margin-bottom: 12px;
+  }
+  .file-card-info { flex: 1; min-width: 0; }
+  .file-card-name {
+    font-weight: 600;
+    font-size: 0.92rem;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+  .file-card-meta {
+    font-size: 0.8rem;
+    color: var(--muted);
+    margin-top: 2px;
+  }
+  .file-card-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 8px 12px;
+    font-size: 0.84rem;
+    margin-bottom: 12px;
+  }
+  .file-card-grid span { color: var(--muted); }
+  .file-card-actions { display: flex; gap: 8px; }
+
+  .note {
+    font-size: 0.82rem;
+    color: var(--muted);
+    line-height: 1.55;
+    margin-top: 10px;
+  }
+  .note strong { color: var(--text); }
+
+  .warning {
+    background: #fff7ed;
+    border: 1px solid #fed7aa;
+    border-radius: 10px;
+    padding: 12px 14px;
+    font-size: 0.84rem;
+    color: #9a3412;
+    margin-top: 12px;
+  }
+
+  @media (max-width: 768px) {
+    .container { padding: 16px 12px 48px; }
+    .card { padding: 16px; }
+    #drop { padding: 28px 16px; }
+    .toolbar { flex-direction: column; }
+    .toolbar .btn { width: 100%; }
+    .table-wrap { display: none; }
+    .mobile-list { display: block; }
+  }
+</style>
+</head>
+<body>
+  <div class="container">
+    <header>
+      <h1>Image Metadata Inspector</h1>
+      <p class="subtitle">AI Provenance Cleaner · Gỡ triệt để C2PA / XMP / EXIF / IPTC · Xử lý cục bộ</p>
+    </header>
+
+    <div class="card">
+      <div id="drop" tabindex="0">
+        <strong>Kéo thả ảnh vào đây</strong>
+        <p>JPEG · PNG · WebP · Có thể chọn nhiều ảnh cùng lúc</p>
+        <button class="btn btn-primary" id="choose">Chọn ảnh</button>
+        <input id="files" type="file" multiple accept="image/jpeg,image/png,image/webp" hidden>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="toolbar">
+        <button class="btn btn-primary" id="report" disabled>Tải báo cáo CSV</button>
+        <button class="btn btn-danger" id="stripAll" disabled>Gỡ triệt để &amp; Tải xuống</button>
+        <button class="btn btn-secondary" id="clear">Xóa danh sách</button>
+      </div>
+
+      <p id="status">Chưa có ảnh.</p>
+
+      <div class="table-wrap">
+        <table>
+          <thead>
+            <tr>
+              <th>Ảnh</th>
+              <th>Tên file</th>
+              <th>Kích thước</th>
+              <th>EXIF</th>
+              <th>XMP</th>
+              <th>C2PA</th>
+              <th>Hành động</th>
+            </tr>
+          </thead>
+          <tbody id="rows"></tbody>
+        </table>
+      </div>
+
+      <div class="mobile-list" id="mobileList"></div>
+
+      <p class="note">
+        Công cụ xóa <strong>toàn bộ</strong> metadata provenance có thể dùng để gắn nhãn AI:<br>
+        • JPEG: EXIF + XMP + C2PA (APP11) + IPTC + Comment<br>
+        • PNG: caBX + toàn bộ text chunk (prompt, model…)<br>
+        • WebP: EXIF + XMP + C2PA<br>
+        Pixel được giữ nguyên 100% (không re-encode).
+      </p>
+
+      <div class="warning">
+        <strong>Lưu ý quan trọng:</strong> Việc xóa metadata giúp giảm mạnh khả năng Facebook/Meta tự động gắn nhãn AI từ chữ ký số. Tuy nhiên nó <strong>không loại bỏ</strong> watermark ẩn trong pixel (SynthID, v.v.). Đây là giới hạn kỹ thuật hiện tại.
+      </div>
+    </div>
+  </div>
+
+<script>
+const $ = id => document.getElementById(id);
+let records = [], urls = [], generation = 0;
+const dec = new TextDecoder('latin1');
+const yes = x => x ? 'Có' : 'Không';
+
+/* ========== FULL AI PROVENANCE STRIP (triệt để) ========== */
+function stripAllProvenance(bytes) {
+  if (bytes.length >= 4 && bytes[0] === 0xff && bytes[1] === 0xd8) return stripJpeg(bytes);
+  if (bytes.length >= 8 && bytes[0] === 0x89 && bytes[1] === 0x50 && bytes[2] === 0x4e && bytes[3] === 0x47) return stripPng(bytes);
+  if (bytes.length >= 12 && ascii(bytes, 0, 4) === 'RIFF' && ascii(bytes, 8, 4) === 'WEBP') return stripWebp(bytes);
+  throw new Error('Định dạng không hỗ trợ');
+}
+
+function ascii(bytes, start, len) {
+  let s = '';
+  for (let i = start; i < start + len && i < bytes.length; i++) s += String.fromCharCode(bytes[i]);
+  return s;
+}
+
+function stripJpeg(bytes) {
+  // Remove: APP1 (EXIF+XMP), APP11 (C2PA), APP13 (IPTC), COM
+  const STRIP = new Set([0xe1, 0xeb, 0xed, 0xfe]);
+  const parts = [];
+  let offset = 2;
+  parts.push(bytes.subarray(0, 2)); // SOI
+
+  while (offset < bytes.length) {
+    if (bytes[offset] !== 0xff) break;
+    let mOff = offset;
+    while (mOff + 1 < bytes.length && bytes[mOff + 1] === 0xff) mOff++;
+    if (mOff + 1 >= bytes.length) break;
+    const marker = bytes[mOff + 1];
+
+    if (marker === 0xda) { // SOS → copy rest
+      parts.push(bytes.subarray(offset));
+      break;
+    }
+
+    if (marker === 0xd9 || marker === 0x01 || (marker >= 0xd0 && marker <= 0xd7)) {
+      parts.push(bytes.subarray(offset, mOff + 2));
+      offset = mOff + 2;
+      continue;
+    }
+
+    if (mOff + 4 > bytes.length) break;
+    const length = (bytes[mOff + 2] << 8) | bytes[mOff + 3];
+    const end = mOff + 2 + length;
+    if (end > bytes.length) break;
+
+    if (STRIP.has(marker)) {
+      offset = end;
+      continue;
+    }
+
+    parts.push(bytes.subarray(offset, end));
+    offset = end;
+  }
+
+  const total = parts.reduce((n, p) => n + p.length, 0);
+  const out = new Uint8Array(total);
+  let c = 0;
+  for (const p of parts) { out.set(p, c); c += p.length; }
+  return out;
+}
+
+function stripPng(bytes) {
+  // Remove: caBX + all text chunks + eXIf
+  const STRIP = new Set(['caBX', 'tEXt', 'zTXt', 'iTXt', 'eXIf', 'tIME']);
+  const parts = [bytes.subarray(0, 8)];
+  let offset = 8;
+
+  while (offset < bytes.length) {
+    if (offset + 12 > bytes.length) break;
+    const length = ((bytes[offset] << 24) | (bytes[offset + 1] << 16) | (bytes[offset + 2] << 8) | bytes[offset + 3]) >>> 0;
+    const type = String.fromCharCode(bytes[offset + 4], bytes[offset + 5], bytes[offset + 6], bytes[offset + 7]);
+    const end = offset + 12 + length;
+    if (end > bytes.length) break;
+
+    if (!STRIP.has(type)) {
+      parts.push(bytes.subarray(offset, end));
+    }
+    offset = end;
+    if (type === 'IEND') break;
+  }
+
+  const total = parts.reduce((n, p) => n + p.length, 0);
+  const out = new Uint8Array(total);
+  let c = 0;
+  for (const p of parts) { out.set(p, c); c += p.length; }
+  return out;
+}
+
+function stripWebp(bytes) {
+  // Remove: EXIF, XMP, C2PA
+  const STRIP = new Set(['EXIF', 'XMP ', 'C2PA']);
+  const keep = [];
+  let offset = 12;
+
+  while (offset < bytes.length) {
+    if (offset + 8 > bytes.length) break;
+    const fourCC = ascii(bytes, offset, 4);
+    const size = (bytes[offset + 4] | (bytes[offset + 5] << 8) | (bytes[offset + 6] << 16) | (bytes[offset + 7] << 24)) >>> 0;
+    const padded = size + (size % 2);
+    const end = offset + 8 + padded;
+    if (end > bytes.length) break;
+
+    if (!STRIP.has(fourCC)) keep.push({ start: offset, end });
+    offset = end;
+  }
+
+  const payloadSize = keep.reduce((n, c) => n + (c.end - c.start), 0);
+  const out = new Uint8Array(12 + payloadSize);
+  out.set(bytes.subarray(0, 12), 0);
+
+  const riffSize = 4 + payloadSize;
+  out[4] = riffSize & 0xff;
+  out[5] = (riffSize >>> 8) & 0xff;
+  out[6] = (riffSize >>> 16) & 0xff;
+  out[7] = (riffSize >>> 24) & 0xff;
+
+  // Clear EXIF/XMP flags in VP8X if present
+  let cursor = 12;
+  for (const c of keep) {
+    out.set(bytes.subarray(c.start, c.end), cursor);
+    if (ascii(out, cursor, 4) === 'VP8X') {
+      out[cursor + 8] &= ~(0x08 | 0x04); // clear EXIF + XMP flags
+    }
+    cursor += c.end - c.start;
+  }
+  return out;
+}
+
+/* ========== DETECT ========== */
+async function inspect(f) {
+  const b = new Uint8Array(await f.arrayBuffer());
+  const s = dec.decode(b);
+  const url = URL.createObjectURL(f);
+  let dim = '—';
+  try {
+    const img = new Image();
+    img.src = url;
+    await img.decode();
+    dim = img.naturalWidth + ' × ' + img.naturalHeight;
+  } catch {}
+
+  const hasExif = /Exif\x00\x00|eXIf|EXIF/.test(s);
+  const hasXmp  = /ns\.adobe\.com\/xap|x:xmpmeta|XMP |adobe:ns:meta/.test(s);
+  const hasC2pa = /c2pa|C2PA|jumb|JUMBF|caBX|contentcredentials/i.test(s);
+
+  return {
+    name: f.name,
+    size: (f.size / 1024 / 1024).toFixed(2) + ' MB',
+    dim,
+    exif: yes(hasExif),
+    xmp: yes(hasXmp),
+    c2pa: yes(hasC2pa),
+    hasAny: hasExif || hasXmp || hasC2pa,
+    url, bytes: b, file: f
+  };
+}
+
+function downloadCleaned(record) {
+  try {
+    const cleaned = stripAllProvenance(record.bytes);
+    const blob = new Blob([cleaned], { type: record.file.type });
+    const a = document.createElement('a');
+    a.href = URL.createObjectURL(blob);
+    const base = record.name.replace(/\.[^.]+$/, '');
+    const ext = record.name.split('.').pop();
+    a.download = base + '_clean.' + ext;
+    a.click();
+    setTimeout(() => URL.revokeObjectURL(a.href), 2000);
+    $('status').textContent = 'Đã tải: ' + a.download;
+  } catch (e) {
+    $('status').textContent = 'Lỗi: ' + e.message;
+  }
+}
+
+function render() {
+  const tbody = $('rows');
+  const mobile = $('mobileList');
+  tbody.replaceChildren();
+  mobile.replaceChildren();
+  let hasAny = false;
+
+  for (const r of records) {
+    if (r.hasAny) hasAny = true;
+
+    // Desktop
+    const tr = document.createElement('tr');
+    const tdThumb = document.createElement('td');
+    const img = document.createElement('img');
+    img.src = r.url; img.className = 'thumb'; img.alt = '';
+    tdThumb.append(img);
+    tr.append(tdThumb);
+
+    for (const v of [r.name, r.dim + ' · ' + r.size]) {
+      const td = document.createElement('td');
+      td.textContent = v;
+      tr.append(td);
+    }
+
+    for (const [val, flag] of [[r.exif, r.exif === 'Có'], [r.xmp, r.xmp === 'Có'], [r.c2pa, r.c2pa === 'Có']]) {
+      const td = document.createElement('td');
+      const badge = document.createElement('span');
+      badge.className = 'badge ' + (flag ? 'badge-yes' : 'badge-no');
+      badge.textContent = val;
+      td.append(badge);
+      tr.append(td);
+    }
+
+    const tdAct = document.createElement('td');
+    if (r.hasAny) {
+      const btn = document.createElement('button');
+      btn.className = 'btn btn-danger btn-sm';
+      btn.textContent = 'Gỡ triệt để';
+      btn.onclick = () => downloadCleaned(r);
+      tdAct.append(btn);
+    } else {
+      const badge = document.createElement('span');
+      badge.className = 'badge badge-no';
+      badge.textContent = 'Sạch';
+      tdAct.append(badge);
+    }
+    tr.append(tdAct);
+    tbody.append(tr);
+
+    // Mobile card
+    const card = document.createElement('div');
+    card.className = 'file-card';
+    card.innerHTML = `
+      <div class="file-card-header">
+        <img src="${r.url}" class="thumb" alt="">
+        <div class="file-card-info">
+          <div class="file-card-name">${r.name}</div>
+          <div class="file-card-meta">${r.dim} · ${r.size}</div>
+        </div>
+      </div>
+      <div class="file-card-grid">
+        <div><span>EXIF</span><br><strong>${r.exif}</strong></div>
+        <div><span>XMP</span><br><strong>${r.xmp}</strong></div>
+        <div><span>C2PA</span><br><strong>${r.c2pa}</strong></div>
+      </div>
+    `;
+    const actions = document.createElement('div');
+    actions.className = 'file-card-actions';
+    if (r.hasAny) {
+      const btn = document.createElement('button');
+      btn.className = 'btn btn-danger btn-sm';
+      btn.textContent = 'Gỡ triệt để & Tải xuống';
+      btn.onclick = () => downloadCleaned(r);
+      actions.append(btn);
+    } else {
+      const badge = document.createElement('span');
+      badge.className = 'badge badge-no';
+      badge.textContent = 'Đã sạch metadata';
+      actions.append(badge);
+    }
+    card.append(actions);
+    mobile.append(card);
+  }
+
+  $('status').textContent = records.length ? `${records.length} ảnh đã kiểm tra` : 'Chưa có ảnh.';
+  $('report').disabled = !records.length;
+  $('stripAll').disabled = !hasAny;
+}
+
+async function add(fs) {
+  const g = generation;
+  for (const f of fs) {
+    if (!/\.(jpe?g|png|webp)$/i.test(f.name)) continue;
+    $('status').textContent = 'Đang kiểm tra: ' + f.name;
+    try {
+      const r = await inspect(f);
+      if (g !== generation) { URL.revokeObjectURL(r.url); return; }
+      records.push(r);
+      urls.push(r.url);
+      render();
+    } catch {
+      $('status').textContent = 'Không đọc được: ' + f.name;
+    }
+  }
+}
+
+// Events
+$('choose').onclick = e => { e.stopPropagation(); $('files').click(); };
+$('drop').onclick = () => $('files').click();
+$('drop').onkeydown = e => { if (e.key === 'Enter' || e.key === ' ') $('files').click(); };
+$('files').onchange = e => { add([...e.target.files]); e.target.value = ''; };
+
+$('drop').ondragover = e => { e.preventDefault(); $('drop').classList.add('over'); };
+$('drop').ondragleave = () => $('drop').classList.remove('over');
+$('drop').ondrop = e => {
+  e.preventDefault();
+  $('drop').classList.remove('over');
+  add([...e.dataTransfer.files]);
+};
+
+$('clear').onclick = () => {
+  generation++;
+  urls.forEach(u => URL.revokeObjectURL(u));
+  urls = [];
+  records = [];
+  render();
+};
+
+$('report').onclick = () => {
+  const q = v => '"' + String(v).replace(/^[=+@\-\t\r]/, "'$&").replaceAll('"', '""') + '"';
+  const lines = [
+    ['Tên file', 'Kích thước pixel', 'Dung lượng', 'EXIF', 'XMP', 'C2PA'],
+    ...records.map(r => [r.name, r.dim, r.size, r.exif, r.xmp, r.c2pa])
+  ];
+  const blob = new Blob(['\ufeff' + lines.map(row => row.map(q).join(',')).join('\r\n')], { type: 'text/csv;charset=utf-8' });
+  const u = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = u; a.download = 'metadata-report.csv'; a.click();
+  setTimeout(() => URL.revokeObjectURL(u), 1000);
+};
+
+$('stripAll').onclick = async () => {
+  const targets = records.filter(r => r.hasAny);
+  if (!targets.length) return;
+  $('status').textContent = 'Đang gỡ metadata...';
+  for (const r of targets) {
+    downloadCleaned(r);
+    await new Promise(res => setTimeout(res, 350));
+  }
+  $('status').textContent = `Đã tải ${targets.length} ảnh đã gỡ triệt để.`;
+};
+</script>
+</body>
+</html>
